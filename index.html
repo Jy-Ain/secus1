@@ -1,38 +1,87 @@
-
+<!DOCTYPE html>
+<html lang="fr">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examen captcha secus1</title>
     <script type="text/javascript" src="./config.js" defer></script>
     <script type="text/javascript" src="https://b82b1763d1c3.eu-west-3.captcha-sdk.awswaf.com/b82b1763d1c3/jsapi.js" defer></script>
 </head>
-
-<script type="text/javascript">
-    function showMyCaptcha() {
-        var container = document.querySelector("#my-captcha-container");
-        
-        AwsWafCaptcha.renderCaptcha(container, {
-            apiKey: window.WAF_API_KEY,
-            onSuccess: captchaExampleSuccessFunction,
-            onError: captchaExampleErrorFunction,
-        });
-    }
-    
-    function captchaExampleSuccessFunction(wafToken) {
-        // Use WAF token to access protected resources
-        AwsWafIntegration.fetch("...WAF-protected URL...", {
-            method: "POST",
-        });
-    }
-    
-    function captchaExampleErrorFunction(error) {
-        /* Do something with the error */
-    }
-</script>
-
 <body>
-  <div id="my-captcha-container">
-    <!-- The contents of this container will be replaced by the captcha widget -->
-  </div>
+    <div id="form-container">
+        <form id="numberForm">
+            <label for="numberInput">Entrez un nombre N entre 1 et 1000 :</label>
+            <input type="number" id="numberInput" min="1" max="1000" required>
+            <button type="submit">Soumettre</button>
+        </form>
+    </div>
 
-  <button onclick="showMyCaptcha()">
-    show my captcha
-  </button>
+    <div id="sequence-container"></div>
+
+    <div id="my-captcha-container" style="display:none;"></div>
+
+    <script type="text/javascript">
+        const API_URL = "https://api.prod.jcloudify.com/whoami";
+        let captchaResolved = false;
+
+        document.getElementById('numberForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            let N = parseInt(document.getElementById('numberInput').value, 10);
+            if (isNaN(N) || N < 1 || N > 1000) {
+                alert('Veuillez entrer un nombre valide entre 1 et 1000.');
+                return;
+            }
+
+            document.getElementById('form-container').style.display = 'none';
+            document.getElementById('sequence-container').innerHTML = '';
+
+            startSequence(N);
+        });
+
+        function startSequence(N) {
+            let index = 1;
+            let interval = setInterval(function() {
+                if (index > N) {
+                    clearInterval(interval);
+                    return;
+                }
+
+                fetch(API_URL)
+                    .then(response => response.text())
+                    .then(data => {
+                        if (data === "Forbidden") {
+                            document.getElementById('sequence-container').innerHTML += `${index}. Forbidden<br>`;
+                        }
+
+                        index++;
+                    })
+                    .catch(error => {
+                        console.error('Erreur API:', error);
+                    });
+            }, 1000);
+
+            document.addEventListener('captchaNeeded', showCaptcha);
+        }
+
+        function showCaptcha() {
+            document.getElementById('my-captcha-container').style.display = 'block';
+            AwsWafCaptcha.renderCaptcha(document.getElementById('my-captcha-container'), {
+                apiKey: window.WAF_API_KEY,
+                onSuccess: captchaSuccess,
+                onError: captchaError
+            });
+        }
+
+        function captchaSuccess(wafToken) {
+            captchaResolved = true;
+            startSequence(1);
+        }
+
+        function captchaError(error) {
+            console.error("Erreur captcha:", error);
+        }
+
+    </script>
 </body>
+</html>
